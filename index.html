@@ -230,12 +230,13 @@ td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
           <div style="background:#f0f4ff;border-radius:6px;padding:10px 12px;margin-bottom:8px;line-height:1.9">
             <strong>보정 계산 방식:</strong><br>
             ① 음수 키워드의 <strong>전월 1일~말일</strong> 쿼리 합산 (초기 데이터에서 자동 계산)<br>
-            ② 네이버 데이터랩 API로 <strong>전월 1일 ~ 결과날짜 전일</strong>까지 일별 지수 조회<br>
-            ③ 보정값 = 전월합산 × (해당일 지수 ÷ 전체 지수 합산)<br>
+            ② 초기 데이터에서 <strong>전월 1일 ~ 결과날짜 전일</strong>까지 일별 합산 (분모)<br>
+            ③ 초기 데이터에서 <strong>결과날짜</strong> 당일 쿼리값 (분자)<br>
+            ④ 보정값 = 전월합산 × (당일값 ÷ 전월1일~전일 합산)<br>
           </div>
           <div style="font-size:11px;color:#888">
-            ※ 보정을 위해 네이버 데이터랩 API 키(Client ID / Secret)가 필요합니다. 최초 1회 입력 후 브라우저에 저장됩니다.<br>
-            ※ 초기 데이터에 전월 데이터가 없는 경우 "데이터 없음"으로 표시됩니다.
+            ※ 별도 API 키 없이 초기 데이터만으로 자동 계산됩니다.<br>
+            ※ 초기 데이터에 해당 날짜 데이터가 없는 경우 "데이터 없음"으로 표시됩니다.
           </div>
         </div>
 
@@ -265,26 +266,7 @@ td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
   <!-- STEP 3: 음수 보정 -->
   <div class="panel" id="p3">
     <div class="panel-title">음수 보정</div>
-    <div class="panel-desc">계산 결과에서 음수값이 발생한 키워드를 네이버 데이터랩 API로 보정합니다. 음수가 없으면 바로 다음 단계로 이동하세요.</div>
-
-    <!-- API 키 설정 -->
-    <div style="background:#f8f9fb;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:12px">
-      <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px">API 키 설정 <span style="font-weight:400;color:#aaa">(브라우저에 저장됨 — 최초 1회만 입력)</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div>
-          <label style="font-size:10px;color:#888;display:block;margin-bottom:3px">Client ID</label>
-          <input id="naverClientId" type="text" placeholder="Client ID 입력"
-            style="width:100%;padding:6px 10px;border:1px solid #cdd5e0;border-radius:6px;font-size:11px;font-family:inherit">
-        </div>
-        <div>
-          <label style="font-size:10px;color:#888;display:block;margin-bottom:3px">Client Secret</label>
-          <input id="naverClientSecret" type="password" placeholder="Client Secret 입력"
-            style="width:100%;padding:6px 10px;border:1px solid #cdd5e0;border-radius:6px;font-size:11px;font-family:inherit">
-        </div>
-      </div>
-      <button class="btn btn-secondary btn-sm" onclick="saveApiKeys()">저장</button>
-      <span id="apiKeySaved" style="font-size:11px;color:#00a86b;margin-left:8px;display:none">✅ 저장됨</span>
-    </div>
+    <div class="panel-desc">계산 결과에서 음수값이 발생한 키워드를 초기 데이터 기준으로 자동 보정합니다. 음수가 없으면 바로 다음 단계로 이동하세요.</div>
 
     <!-- 음수 키워드 목록 -->
     <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:12px">
@@ -1038,80 +1020,78 @@ function updateNegList(){
 }
 
 async function runNegFix(){
-  const clientId  = localStorage.getItem('naver_api_id');
-  const clientSec = localStorage.getItem('naver_api_sec');
-  if(!clientId || !clientSec){ alert('API 키를 먼저 저장해주세요.'); return; }
-
   const kwEntries  = window._kwEntries  || [];
   const allNegRows = window._allNegRows || [];
   const prevSums   = window._prevSums   || {};
   if(!kwEntries.length){ alert('음수 키워드가 없습니다.'); return; }
 
-  const loadEl = document.getElementById('fix-loading');
-  const txtEl  = document.getElementById('fix-loading-txt');
   const resEl  = document.getElementById('fix-result-area');
   const detEl  = document.getElementById('fix-result-detail');
+  const loadEl = document.getElementById('fix-loading');
   loadEl.classList.add('show'); resEl.style.display='none';
 
+  const store = loadStore();
   let fixedCount = 0;
   const log = [];
 
   for(let i=0; i<kwEntries.length; i++){
     const [kwKey, info] = kwEntries[i];
     const r = info.rep;
-    const negDates = [...new Set(info.dates)].sort();
-    const firstDate = negDates[0];
-    const lastDate  = negDates[negDates.length-1];
-    const bd = new Date(firstDate+'T00:00:00');
-    const prevMonthStart = fmt(new Date(bd.getFullYear(), bd.getMonth()-1, 1));
-    // 비중 계산 범위: 전월1일 ~ 음수날짜 전일
-    const dayBefore = fmt(new Date(bd.getFullYear(), bd.getMonth(), bd.getDate()-1));
+    const kwLower = info.kwLower;
 
     if(r.isComp){
       const mqVal = prevSums[kwKey+'_pcmo'] || 0;
       if(!mqVal){ log.push(`⚠️ ${r.kw} PC+MO 전월합산 데이터 없음 — 건너뜀`); continue; }
-      txtEl.textContent = `API 조회: ${r.kw} PC+MO`;
-      try{
-        const allRatios = await fetchDatalabAll(clientId, clientSec, r.kw, prevMonthStart, dayBefore, '');
-        const totalRatio = Object.values(allRatios).reduce((a,b)=>a+b,0);
-        const doneSet = new Set();
-        allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===(info.kwLower||r.kwLower||r.kw||'').toLowerCase())&&row.isComp).forEach(row=>{
-          const dk = row.date;
-          if(doneSet.has(dk)) return; doneSet.add(dk);
-          const targetRatio = allRatios[row.date];
-          if(targetRatio!==undefined && totalRatio>0){
-            row.pcmo1 = r2(mqVal * targetRatio / totalRatio);
-            row.negPcmo = false; fixedCount++;
-            log.push(`✅ ${r.kw} PC+MO (${row.date}) → ${row.pcmo1} (비중: ${r2(targetRatio/totalRatio*100)}%)`);
-          } else {
-            log.push(`⚠️ ${r.kw} PC+MO (${row.date}) 지수 없음`);
-          }
-        });
-      } catch(e){ log.push(`❌ ${r.kw} PC+MO 실패: ${e.message}`); }
+
+      const sk = `__comp__${r.grp}`;
+      const dates = store[sk] || {};
+      const doneSet = new Set();
+
+      allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===kwLower)&&row.isComp).forEach(row=>{
+        if(doneSet.has(row.date)) return; doneSet.add(row.date);
+        const bd = new Date(row.date+'T00:00:00');
+        const prevStart = fmt(new Date(bd.getFullYear(), bd.getMonth()-1, 1));
+        const dayBefore = fmt(new Date(bd.getTime()-86400000));
+        // 분모: 전월1일~전일까지 합산
+        let denominator = 0;
+        Object.entries(dates).forEach(([dt,val])=>{ if(dt>=prevStart&&dt<=dayBefore) denominator+=val.pcmo||0; });
+        // 분자: 해당일 값
+        const numerator = dates[row.date]?.pcmo || 0;
+        if(denominator>0 && numerator>0){
+          row.pcmo1 = r2(mqVal * numerator / denominator);
+          row.negPcmo = false; fixedCount++;
+          log.push(`✅ ${r.kw} PC+MO (${row.date}) → ${row.pcmo1} (비중: ${r2(numerator/denominator*100)}%)`);
+        } else {
+          log.push(`⚠️ ${r.kw} PC+MO (${row.date}) 데이터 없음 (분모=${r2(denominator)}, 분자=${numerator})`);
+        }
+      });
 
     } else {
+      const sk = storeKey(kwLower, r.grp);
+      const dates = store[sk] || {};
+
       // PC
       if(info.negPc){
         const mqPc = prevSums[kwKey+'_pc'] || 0;
         if(!mqPc){ log.push(`⚠️ ${r.kw} PC 전월합산 데이터 없음 — 건너뜀`); }
         else {
-          txtEl.textContent = `API 조회: ${r.kw} PC`;
-          try{
-            const allRatios = await fetchDatalabAll(clientId, clientSec, r.kw, prevMonthStart, dayBefore, 'pc');
-            const totalRatio = Object.values(allRatios).reduce((a,b)=>a+b,0);
-            const doneSetPc = new Set();
-            allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===(info.kwLower||r.kwLower||r.kw||'').toLowerCase())&&!row.isComp&&row.negPc).forEach(row=>{
-              if(doneSetPc.has(row.date)) return; doneSetPc.add(row.date);
-              const targetRatio = allRatios[row.date];
-              if(targetRatio!==undefined && totalRatio>0){
-                row.pc1 = r2(mqPc * targetRatio / totalRatio);
-                row.negPc = false; fixedCount++;
-                log.push(`✅ ${r.kw} PC (${row.date}) → ${row.pc1} (비중: ${r2(targetRatio/totalRatio*100)}%)`);
-              } else {
-                log.push(`⚠️ ${r.kw} PC (${row.date}) 지수 없음`);
-              }
-            });
-          } catch(e){ log.push(`❌ ${r.kw} PC 실패: ${e.message}`); }
+          const doneSetPc = new Set();
+          allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===kwLower)&&!row.isComp&&row.negPc).forEach(row=>{
+            if(doneSetPc.has(row.date)) return; doneSetPc.add(row.date);
+            const bd = new Date(row.date+'T00:00:00');
+            const prevStart = fmt(new Date(bd.getFullYear(), bd.getMonth()-1, 1));
+            const dayBefore = fmt(new Date(bd.getTime()-86400000));
+            let denominator = 0;
+            Object.entries(dates).forEach(([dt,val])=>{ if(dt>=prevStart&&dt<=dayBefore) denominator+=val.pc||0; });
+            const numerator = dates[row.date]?.pc || 0;
+            if(denominator>0 && numerator>0){
+              row.pc1 = r2(mqPc * numerator / denominator);
+              row.negPc = false; fixedCount++;
+              log.push(`✅ ${r.kw} PC (${row.date}) → ${row.pc1} (비중: ${r2(numerator/denominator*100)}%)`);
+            } else {
+              log.push(`⚠️ ${r.kw} PC (${row.date}) 데이터 없음 (분모=${r2(denominator)}, 분자=${numerator})`);
+            }
+          });
         }
       }
       // MO
@@ -1119,23 +1099,23 @@ async function runNegFix(){
         const mqMo = prevSums[kwKey+'_mo'] || 0;
         if(!mqMo){ log.push(`⚠️ ${r.kw} MO 전월합산 데이터 없음 — 건너뜀`); }
         else {
-          txtEl.textContent = `API 조회: ${r.kw} MO`;
-          try{
-            const allRatios = await fetchDatalabAll(clientId, clientSec, r.kw, prevMonthStart, dayBefore, 'mo');
-            const totalRatio = Object.values(allRatios).reduce((a,b)=>a+b,0);
-            const doneSetMo = new Set();
-            allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===(info.kwLower||r.kwLower||r.kw||'').toLowerCase())&&!row.isComp&&row.negMo).forEach(row=>{
-              if(doneSetMo.has(row.date)) return; doneSetMo.add(row.date);
-              const targetRatio = allRatios[row.date];
-              if(targetRatio!==undefined && totalRatio>0){
-                row.mo1 = r2(mqMo * targetRatio / totalRatio);
-                row.negMo = false; fixedCount++;
-                log.push(`✅ ${r.kw} MO (${row.date}) → ${row.mo1} (비중: ${r2(targetRatio/totalRatio*100)}%)`);
-              } else {
-                log.push(`⚠️ ${r.kw} MO (${row.date}) 지수 없음`);
-              }
-            });
-          } catch(e){ log.push(`❌ ${r.kw} MO 실패: ${e.message}`); }
+          const doneSetMo = new Set();
+          allNegRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===kwLower)&&!row.isComp&&row.negMo).forEach(row=>{
+            if(doneSetMo.has(row.date)) return; doneSetMo.add(row.date);
+            const bd = new Date(row.date+'T00:00:00');
+            const prevStart = fmt(new Date(bd.getFullYear(), bd.getMonth()-1, 1));
+            const dayBefore = fmt(new Date(bd.getTime()-86400000));
+            let denominator = 0;
+            Object.entries(dates).forEach(([dt,val])=>{ if(dt>=prevStart&&dt<=dayBefore) denominator+=val.mo||0; });
+            const numerator = dates[row.date]?.mo || 0;
+            if(denominator>0 && numerator>0){
+              row.mo1 = r2(mqMo * numerator / denominator);
+              row.negMo = false; fixedCount++;
+              log.push(`✅ ${r.kw} MO (${row.date}) → ${row.mo1} (비중: ${r2(numerator/denominator*100)}%)`);
+            } else {
+              log.push(`⚠️ ${r.kw} MO (${row.date}) 데이터 없음 (분모=${r2(denominator)}, 분자=${numerator})`);
+            }
+          });
         }
       }
     }
@@ -1149,6 +1129,7 @@ async function runNegFix(){
   if(fixedCount>0) renderResults();
   updateNegList();
 }
+
 
 // 전체 날짜별 지수 반환 { "2026-06-17": 73.1, ... }
 async function fetchDatalabAll(clientId, clientSec, kw, startDate, endDate, device){
@@ -1178,10 +1159,13 @@ async function fetchDatalabAll(clientId, clientSec, kw, startDate, endDate, devi
     const dateKey = String(d.period).slice(0,10);
     result[dateKey] = d.ratio;
   });
+  // 디버그: 첫번째/마지막 날짜 확인
+  const keys = Object.keys(result).sort();
+  dbg(`[API] ${kw} ${device||'all'}: ${keys[0]}~${keys[keys.length-1]} (${keys.length}일) startDate=${startDate} endDate=${endDate}`);
   return result;
 }
 
 // ── 초기화 ─────────────────────────────────────────────────
-updateStoreInfo(); updateNextBtn(); loadApiKeys();</script>
+updateStoreInfo(); updateNextBtn();</script>
 </body>
 </html>
