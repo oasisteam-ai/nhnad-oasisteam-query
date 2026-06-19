@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB손해보험_검색어별 1일 쿼리 계산기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:13px;background:#f0f2f5;color:#1a1a2e}
+.header{background:#003087;color:#fff;padding:16px 32px;display:flex;align-items:center;gap:14px}
+.hl{width:34px;height:34px;background:rgba(255,255,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
+.header h1{font-size:15px;font-weight:700}
+.header .sub{font-size:11px;opacity:0.7;margin-top:2px}
+.main{max-width:1200px;margin:0 auto;padding:20px 28px}
+.steps{display:flex;margin-bottom:18px;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #dde2ea}
+.step{flex:1;padding:11px 12px;display:flex;align-items:center;gap:7px;border-right:1px solid #dde2ea;transition:background .2s}
+.step:last-child{border-right:none}
+.step.active{background:#EBF2FF}.step.done{background:#f0fff8}
+.step-num{width:20px;height:20px;border-radius:50%;background:#c8d0dc;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.step.active .step-num{background:#003087}.step.done .step-num{background:#00a86b}
+.step-label{font-size:11px;color:#888}
+.step.active .step-label{color:#003087;font-weight:600}.step.done .step-label{color:#00a86b}
+.panel{background:#fff;border-radius:10px;border:1px solid #dde2ea;padding:22px 26px;margin-bottom:14px;display:none}
+.panel.active{display:block}
+.panel-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.panel-desc{font-size:11px;color:#888;margin-bottom:16px;line-height:1.7}
+.tab-nav{display:flex;border-bottom:2px solid #003087;margin-bottom:0}
+.tab-btn{padding:9px 18px;border:none;background:none;cursor:pointer;font-size:12px;color:#888;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:500}
+.tab-btn.on{color:#003087;font-weight:700;border-bottom-color:#003087}
+.tab-pane{display:none;padding:18px 0 0}.tab-pane.on{display:block}
+.sbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#f8f9fb;border:1px solid #dde2ea;border-radius:8px;font-size:11px;margin-bottom:14px}
+.sbar .sl{color:#888}.sbar .sv{font-weight:700;color:#003087;flex:1}
+.drop-area{border:2px dashed #b0bec5;border-radius:10px;padding:18px 14px;text-align:center;cursor:pointer;background:#fafbfc;min-height:85px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:all .2s}
+.drop-area:hover,.drop-area.drag{border-color:#003087;background:#EBF2FF}
+.drop-area.has-files{border-color:#00a86b;background:#f0fff8;border-style:solid}
+.drop-icon{font-size:22px;opacity:0.4}
+.drop-area p{font-size:11px;color:#666;line-height:1.7}
+.drop-area strong{color:#003087}
+.drop-area input[type=file]{display:none}
+.file-list{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.fc{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:5px;background:#f0fff8;border:1px solid #b3e6cc;font-size:10px}
+.fc-name{color:#00a86b;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.fc-del{cursor:pointer;color:#bbb;font-size:14px;line-height:1;flex-shrink:0}.fc-del:hover{color:#c0392b}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-primary{background:#003087;color:#fff}.btn-primary:hover{background:#002060}
+.btn-primary:disabled{background:#a0aab8;cursor:not-allowed}
+.btn-secondary{background:#f0f2f5;color:#444;border:1px solid #dde}.btn-secondary:hover{background:#e0e4ea}
+.btn-sm{padding:5px 11px;font-size:11px}
+.btn-green{background:#00a86b;color:#fff}.btn-green:hover{background:#008f5a}
+.rtabs{display:flex;border-bottom:2px solid #003087;flex-wrap:wrap}
+.rtab{padding:7px 14px;border:none;background:none;cursor:pointer;font-size:11px;color:#888;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:500;white-space:nowrap}
+.rtab.on{color:#003087;font-weight:700;border-bottom-color:#003087}
+.rpane{display:none;border:1px solid #dde2ea;border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
+.rpane.on{display:block}
+.tbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead{position:sticky;top:0;z-index:2}
+thead th{background:#003087;color:#fff;padding:7px 8px;text-align:center;white-space:nowrap;font-weight:600}
+tbody tr:nth-child(even){background:#f8f9fb}
+tbody tr:hover{background:#EBF2FF}
+td{padding:6px 8px;border-bottom:1px solid #f0f0f4;white-space:nowrap;text-align:right}
+td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
+.neg{color:#c0392b;font-weight:700}
+.scards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sc{background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:10px 14px;flex:1;min-width:100px}
+.sc .sl{font-size:10px;color:#888;margin-bottom:3px}
+.sc .sv{font-size:17px;font-weight:700;color:#003087}
+.sc.warn .sv{color:#c0392b}.sc.ok .sv{color:#00a86b}
+.dl-row{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#EBF2FF;border-radius:8px;border:1px solid #b3ccf5;margin-bottom:8px}
+.loading{display:none;align-items:center;gap:8px;padding:10px;color:#003087;font-size:11px}
+.loading.show{display:flex}
+.spinner{width:15px;height:15px;border:2px solid #b0c8f0;border-top-color:#003087;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pb{height:3px;background:#e0e8f5;border-radius:2px;margin:5px 0;overflow:hidden}
+.pf{height:100%;background:#003087;border-radius:2px;transition:width .3s;width:0%}
+.tips{background:#fffbe6;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:11px;color:#7d5a00;line-height:1.8;margin-top:10px}
+.dbg{background:#f4f6f8;border:1px solid #dde;border-radius:5px;padding:7px 10px;font-size:10px;color:#555;margin-top:6px;white-space:pre-wrap;max-height:140px;overflow-y:auto;font-family:monospace;display:none}
+.dbg.show{display:block}
+.badge{display:inline-block;background:#003087;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px}
+.date-badge{display:inline-block;background:#e8f0fe;color:#003087;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="hl">DB</div>
+  <div><h1>검색어별 1일 쿼리 계산기</h1><div class="sub">오아시스팀 · 브라우저 저장 기반 자동 누적</div></div>
+</div>
+<div class="main">
+  <div class="steps">
+    <div class="step active" id="s1"><div class="step-num">1</div><div class="step-label">데이터 준비</div></div>
+    <div class="step" id="s2"><div class="step-num">2</div><div class="step-label">계산 결과</div></div>
+    <div class="step" id="s3"><div class="step-num">3</div><div class="step-label">음수 보정</div></div>
+    <div class="step" id="s4"><div class="step-num">4</div><div class="step-label">다운로드</div></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="panel active" id="p1">
+    <div class="panel-title">데이터 준비</div>
+    <div class="panel-desc">트렌드K 파일을 업로드하세요. 파일명 앞 8자리(YYYYMMDD)로 날짜를 자동 인식합니다.</div>
+    <div class="sbar">
+      <span class="sl">저장 데이터</span>
+      <span class="sv" id="storageInfo">확인 중...</span>
+      <button class="btn btn-secondary btn-sm" onclick="clearStorage()">초기화</button>
+    </div>
+    <div class="tab-nav">
+      <button class="tab-btn on" onclick="switchTab(event,'tab-today')">📅 트렌드K 파일 업로드</button>
+      <button class="tab-btn" onclick="switchTab(event,'tab-init')">📦 초기 데이터 로드 (처음 1회)</button>
+      <button class="tab-btn" onclick="switchTab(event,'tab-guide')">📋 사용 설명서</button>
+    </div>
+
+    <div class="tab-pane on" id="tab-today">
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:#003087;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #003087">
+          트렌드K 파일 <span class="badge" id="cnt-today">0</span>
+          <span style="font-weight:400;color:#888;font-size:10px;margin-left:8px">여러 날짜 파일 동시 업로드 가능 (월요일: 금/토/일 파일 한꺼번에)</span>
+        </div>
+        <div class="drop-area" id="drop-today" onclick="document.getElementById('f-today').click()">
+          <div class="drop-icon">📂</div>
+          <p><strong>클릭</strong>하거나 <strong>드래그</strong><br>
+          <span style="font-size:10px;color:#aaa">파일명: 20260619_DB손해보험_브랜드.xls 형식 · 여러 개 가능</span></p>
+          <input type="file" id="f-today" accept=".xls,.xlsx" multiple onchange="handleTodayFiles(this.files)">
+        </div>
+        <div class="file-list" id="fl-today"></div>
+      </div>
+      <!-- 감지된 날짜 표시 -->
+      <div id="detected-dates" style="display:none;margin-top:10px;padding:10px 14px;background:#f0fff8;border:1px solid #b3e6cc;border-radius:8px;font-size:11px">
+        <span style="color:#888">감지된 날짜: </span><span id="date-list"></span>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-init">
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:#003087;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #003087">30일치 통합 엑셀 파일</div>
+        <div class="drop-area" id="drop-init" onclick="document.getElementById('f-init').click()">
+          <div class="drop-icon">📦</div>
+          <p><strong>클릭</strong>하거나 <strong>드래그</strong>로 업로드<br><span style="font-size:10px;color:#aaa">통합_문서1_30일_일일_쿼리.xlsx</span></p>
+          <input type="file" id="f-init" accept=".xlsx,.xls" onchange="handleInitFile(this.files[0])">
+        </div>
+        <div id="init-status" style="margin-top:8px;font-size:11px;color:#888"></div>
+      </div>
+      <div class="tips">
+        <strong>초기 데이터 파일 구조:</strong><br>
+        섹션1 (A~F열): 일별 · 키워드 · 그룹 · 요일 · PC · MO → DB손보 / DB손보_전사 / 업종K<br>
+        섹션2 (H~L열): 일별 · 키워드 · 그룹 · 요일 · PC+MO → 경쟁사 (KB손보/삼성화재/현대해상 통합)<br>
+        섹션3 (N~S열): 일별 · 키워드 · 그룹 · 요일 · PC · MO → 업종K 추가
+      </div>
+    </div>
+
+
+    <div class="tab-pane" id="tab-guide">
+      <div style="line-height:1.9;font-size:12px;color:#333">
+
+        <div style="background:#003087;color:#fff;border-radius:8px;padding:14px 18px;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">📋 DB손해보험 키워드 1일치 계산기 사용 설명서</div>
+          <div style="font-size:11px;opacity:0.8">별도 프로그램 설치 불필요 · 브라우저에서 바로 실행</div>
+        </div>
+
+
+
+        <div style="font-weight:700;color:#003087;font-size:13px;margin-bottom:8px;border-bottom:2px solid #003087;padding-bottom:4px">🔰 처음 사용 시 (최초 1회)</div>
+        <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+          <div style="margin-bottom:8px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">1</span>
+          <strong>📦 초기 데이터 로드 탭</strong>으로 이동</div>
+          <div style="margin-bottom:8px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">2</span>
+          <strong>통합_문서1_30일_일일_쿼리.xlsx</strong> 파일 업로드</div>
+          <div style="margin-bottom:4px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">3</span>
+          "✅ N개 데이터 저장 완료" 메시지 확인 → 이후부터는 이 단계 불필요</div>
+          <div style="font-size:11px;color:#888;margin-top:8px;padding-top:8px;border-top:1px solid #eee">
+          ※ 초기 파일은 최근 29일치 일별 데이터가 담긴 통합 엑셀입니다. 브라우저에 저장되므로 다음 접속 시에도 유지됩니다.
+          </div>
+        </div>
+
+        <div style="font-weight:700;color:#003087;font-size:13px;margin-bottom:8px;border-bottom:2px solid #003087;padding-bottom:4px">📅 매일 작업 순서</div>
+        <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+          <div style="margin-bottom:8px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">1</span>
+          오늘 날짜의 트렌드K 파일 준비<br>
+          <span style="font-size:11px;color:#888;margin-left:24px">파일명 형식 반드시 지킬 것: <strong>20260619_DB손해보험_브랜드.xls</strong></span></div>
+          <div style="margin-bottom:8px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">2</span>
+          <strong>📅 트렌드K 파일 업로드 탭</strong>에서 파일 업로드 (모든 파일 한꺼번에)</div>
+          <div style="margin-bottom:8px"><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">3</span>
+          감지된 날짜 확인 후 <strong>계산 실행 →</strong> 클릭</div>
+          <div><span style="background:#003087;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px">4</span>
+          결과 확인 후 <strong>다운로드</strong></div>
+          <div style="font-size:11px;color:#888;margin-top:8px;padding-top:8px;border-top:1px solid #eee">
+          ※ 결과 날짜는 파일명 날짜 -1일로 표시됩니다 (전일 쿼리 기준)<br>
+          예) 파일명 20260619 → 결과 날짜 2026-06-18
+          </div>
+        </div>
+
+        <div style="font-weight:700;color:#003087;font-size:13px;margin-bottom:8px;border-bottom:2px solid #003087;padding-bottom:4px">📅 월요일 작업 (금/토/일 누락분)</div>
+        <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+          <div style="margin-bottom:6px">금/토/일 3일치 트렌드K 파일을 <strong>한꺼번에</strong> 업로드하면 날짜별로 각각 1일치가 계산됩니다.</div>
+          <div style="background:#f8f9fb;border-radius:6px;padding:8px 12px;font-size:11px;color:#555">
+          <strong>예시:</strong><br>
+          20260620_DB손해보험_브랜드.xls (금)<br>
+          20260621_DB손해보험_브랜드.xls (토)<br>
+          20260622_DB손해보험_브랜드.xls (일)<br>
+          → 세 파일 동시 업로드 → 2026-06-19/20/21 결과 3일치 한번에 출력
+          </div>
+        </div>
+
+        <div style="font-weight:700;color:#003087;font-size:13px;margin-bottom:8px;border-bottom:2px solid #003087;padding-bottom:4px">📊 계산 방식</div>
+        <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+          <div style="font-size:12px">
+          <strong>1일치 = 오늘 파일 최근30일 누적 − 전29일 합산</strong><br><br>
+          <span style="color:#888">전29일 합산 기간: 결과날짜 기준 최근 29일 (브라우저에 저장된 누적 데이터 활용)</span><br><br>
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <tr style="background:#f0f4ff"><th style="padding:6px 10px;text-align:left;border:1px solid #dde">그룹</th><th style="padding:6px 10px;border:1px solid #dde">계산 방식</th></tr>
+            <tr><td style="padding:6px 10px;border:1px solid #dde">DB손보 / DB손보_전사 / 업종_자동차 / 업종_이륜차</td><td style="padding:6px 10px;border:1px solid #dde;text-align:center">PC / MO 분리</td></tr>
+            <tr style="background:#f8f9fb"><td style="padding:6px 10px;border:1px solid #dde">경쟁사_삼성 / 경쟁사_현대 / 경쟁사_KB</td><td style="padding:6px 10px;border:1px solid #dde;text-align:center">PC+MO 통합 (3사 각각 별도 집계)</td></tr>
+          </table>
+          </div>
+        </div>
+
+        <div style="font-weight:700;color:#003087;font-size:13px;margin-bottom:8px;border-bottom:2px solid #003087;padding-bottom:4px">⚠️ 주의사항</div>
+        <div style="background:#fffbe6;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;font-size:11px;color:#7d5a00">
+          • 파일명 앞 8자리가 날짜로 인식됩니다. 파일명 형식을 반드시 지켜주세요.<br>
+          • 같은 브라우저에서만 저장 데이터가 유지됩니다. (다른 브라우저나 시크릿 모드에서는 초기 로드 필요)<br>
+          • 저장 데이터 초기화 시 초기 데이터부터 다시 로드해야 합니다.<br>
+          • 기준 키워드 목록에 없는 키워드는 자동으로 제외됩니다.
+        </div>
+
+      </div>
+    </div>
+      <button class="btn btn-primary" id="btn-next1" disabled onclick="goStep(2)">계산 실행 →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel" id="p2">
+    <div class="panel-title">계산 결과</div>
+    <div class="loading show" id="loadingMsg"><div class="spinner"></div><span id="loadingTxt">계산 중...</span></div>
+    <div class="pb"><div class="pf" id="prog"></div></div>
+    <div class="dbg" id="dbgLog"></div>
+    <div id="resultArea" style="display:none">
+      <div class="scards" id="summaryCards"></div>
+      <div class="rtabs" id="resultTabs"></div>
+      <div id="resultPanes"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="goStep(1)">← 다시 업로드</button>
+        <button class="btn btn-primary" onclick="goStep(3)">음수 보정 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: 음수 보정 -->
+  <div class="panel" id="p3">
+    <div class="panel-title">음수 보정</div>
+    <div class="panel-desc">계산 결과에서 음수값이 발생한 키워드를 네이버 데이터랩 API로 보정합니다. 음수가 없으면 바로 다음 단계로 이동하세요.</div>
+
+    <!-- API 키 설정 -->
+    <div style="background:#f8f9fb;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px">API 키 설정 <span style="font-weight:400;color:#aaa">(브라우저에 저장됨 — 최초 1회만 입력)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:10px;color:#888;display:block;margin-bottom:3px">Client ID</label>
+          <input id="naverClientId" type="text" placeholder="Client ID 입력"
+            style="width:100%;padding:6px 10px;border:1px solid #cdd5e0;border-radius:6px;font-size:11px;font-family:inherit">
+        </div>
+        <div>
+          <label style="font-size:10px;color:#888;display:block;margin-bottom:3px">Client Secret</label>
+          <input id="naverClientSecret" type="password" placeholder="Client Secret 입력"
+            style="width:100%;padding:6px 10px;border:1px solid #cdd5e0;border-radius:6px;font-size:11px;font-family:inherit">
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="saveApiKeys()">저장</button>
+      <span id="apiKeySaved" style="font-size:11px;color:#00a86b;margin-left:8px;display:none">✅ 저장됨</span>
+    </div>
+
+    <!-- 음수 키워드 목록 -->
+    <div style="background:#fff;border:1px solid #dde2ea;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px">음수 키워드 목록</div>
+      <div id="fix-neg-list" style="margin-bottom:10px;font-size:11px;color:#888">불러오는 중...</div>
+      <button class="btn btn-primary btn-sm" id="btn-fix-run" disabled onclick="runNegFix()">🔧 음수 키워드 보정 실행</button>
+      <div class="loading" id="fix-loading" style="margin-top:8px"><div class="spinner"></div><span id="fix-loading-txt">API 조회 중...</span></div>
+    </div>
+
+    <!-- 보정 결과 -->
+    <div id="fix-result-area" style="display:none;background:#f0fff8;border:1px solid #b3e6cc;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#00a86b;margin-bottom:8px">✅ 보정 완료</div>
+      <div id="fix-result-detail" style="font-size:11px;color:#555"></div>
+    </div>
+
+    <div class="tips" style="margin-bottom:12px">
+      <strong>⚠️ CORS 안내:</strong> 브라우저 보안 정책으로 API 직접 호출이 막힐 수 있습니다.<br>
+      막힐 경우: 크롬 확장 <strong>CORS Unblock</strong> 설치 후 활성화하거나,<br>
+      CMD에서 <code style="background:#fff3cd;padding:1px 4px;border-radius:3px">chrome.exe --disable-web-security --user-data-dir=C:\temp</code> 실행 후 해당 HTML 열어주세요.
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="goStep(2)">← 계산 결과</button>
+      <button class="btn btn-primary" onclick="goStep(4)">다운로드 →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="panel" id="p4">
+    <div class="panel-title">결과 다운로드</div>
+    <div id="dlButtons"></div>
+    <div class="tips" style="margin-top:10px">
+      <strong>✅ 데이터 저장 완료:</strong> 다음 작업 시 오늘 파일만 업로드하면 자동으로 누적 데이터와 비교합니다.
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="goStep(3)">← 음수 보정</button>
+      <button class="btn btn-secondary" onclick="goStep(1)">처음으로</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// 기준 키워드 정의
+// ══════════════════════════════════════════════════════════
+const KW_REF = {
+  'db다이렉트':'DB손보','db다이렉트자동차보험':'DB손보','db손해보험다이렉트':'DB손보',
+  'db자동차보험':'DB손보','동부다이렉트자동차보험':'DB손보','동부자동차보험':'DB손보',
+  '동부화재다이렉트':'DB손보','동부화재자동차보험':'DB손보','디비다이렉트':'DB손보','디비자동차보험':'DB손보',
+  'db손해보험':'DB손보_전사','동부화재':'DB손보_전사','디비손해보험':'DB손보_전사',
+  // 경쟁사_삼성
+  '삼성다이렉트':'경쟁사_삼성','삼성다이렉트보험':'경쟁사_삼성','삼성다이렉트자동차보험':'경쟁사_삼성',
+  '삼성애니카':'경쟁사_삼성','삼성애니카다이렉트':'경쟁사_삼성','삼성자동차다이렉트':'경쟁사_삼성',
+  '삼성화재다이렉트':'경쟁사_삼성','삼성화재다이렉트자동차보험':'경쟁사_삼성','삼성화재자동차보험':'경쟁사_삼성','애니카다이렉트':'경쟁사_삼성',
+  // 경쟁사_현대
+  '하이카다이렉트':'경쟁사_현대','현대다이렉트자동차보험':'경쟁사_현대','현대자동차다이렉트':'경쟁사_현대','현대자동차보험':'경쟁사_현대',
+  '현대하이카':'경쟁사_현대','현대하이카다이렉트':'경쟁사_현대','현대해상다이렉트':'경쟁사_현대',
+  '현대해상다이렉트자동차보험':'경쟁사_현대','현대해상자동차보험':'경쟁사_현대','현대해상하이카':'경쟁사_현대',
+  // 경쟁사_KB
+  'kb다이렉트':'경쟁사_KB','kb다이렉트보험':'경쟁사_KB','kb다이렉트자동차보험':'경쟁사_KB','kb매직카':'경쟁사_KB',
+  'kb손해보험다이렉트':'경쟁사_KB','kb손해보험자동차보험':'경쟁사_KB','kb자동차':'경쟁사_KB',
+  'kb자동차다이렉트':'경쟁사_KB','kb자동차보험':'경쟁사_KB','kb자동차보험마일리지':'경쟁사_KB',
+  // 업종
+  '다이렉트자동차보험':'업종_자동차','자동차다이렉트보험':'업종_자동차','자동차보험':'업종_자동차',
+  '자동차보험다이렉트':'업종_자동차','자동차보험료비교견적사이트':'업종_자동차',
+  '오토바이보험':'업종_이륜차','이륜차다이렉트보험':'업종_이륜차','이륜차보험':'업종_이륜차',
+};
+// 경쟁사 그룹들: PC+MO 통합 계산
+const COMP_GROUPS = new Set(['경쟁사_삼성','경쟁사_현대','경쟁사_KB']);
+// 초기파일 섹션2 통합키 → 그룹 매핑
+const INIT_COMP_MAP = {'kb손보':'경쟁사_KB','삼성화재':'경쟁사_삼성','현대해상':'경쟁사_현대'};
+const GROUP_ORDER = ['DB손보','DB손보_전사','경쟁사_삼성','경쟁사_현대','경쟁사_KB','업종_자동차','업종_이륜차'];
+
+// ══════════════════════════════════════════════════════════
+// 저장소
+// ══════════════════════════════════════════════════════════
+const LS_KEY = 'db_kw_store_v11';
+function loadStore(){ try{return JSON.parse(localStorage.getItem(LS_KEY)||'{}')}catch{return{}} }
+function saveStore(d){ localStorage.setItem(LS_KEY, JSON.stringify(d)) }
+function storeKey(kw,grp){ return kw.toLowerCase().trim()+'|'+grp }
+
+function getStoreInfo(){
+  const d=loadStore(); const keys=Object.keys(d);
+  if(!keys.length) return {kwCount:0,dateMin:'-',dateMax:'-',dateCount:0};
+  const dates=new Set();
+  Object.values(d).forEach(v=>Object.keys(v).forEach(dt=>dates.add(dt)));
+  const sorted=[...dates].sort();
+  return {kwCount:keys.length,dateMin:sorted[0],dateMax:sorted[sorted.length-1],dateCount:dates.size};
+}
+function updateStoreInfo(){
+  const info=getStoreInfo(); const el=document.getElementById('storageInfo');
+  if(info.kwCount===0){
+    el.textContent='저장 없음 — 초기 데이터를 먼저 로드하세요';
+    el.style.color='#c0392b';
+  } else {
+    el.textContent=`키워드 ${info.kwCount}개 · ${info.dateMin} ~ ${info.dateMax} (${info.dateCount}일치)`;
+    el.style.color='#003087';
+  }
+}
+function clearStorage(){
+  if(!confirm('저장된 모든 데이터를 삭제하시겠습니까?')) return;
+  localStorage.removeItem(LS_KEY);
+  updateStoreInfo(); updateNextBtn();
+}
+
+// ── 로그 ──────────────────────────────────────────────────
+function dbg(m){const el=document.getElementById('dbgLog');el.classList.add('show');el.textContent+=m+'\n';el.scrollTop=el.scrollHeight;}
+
+// ── 탭 전환 ───────────────────────────────────────────────
+function switchTab(e,id){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on'); e.target.classList.add('on');
+}
+
+// ══════════════════════════════════════════════════════════
+// 파일명에서 날짜 추출: 20260619_... → "2026-06-19"
+// ══════════════════════════════════════════════════════════
+function extractDateFromFilename(filename){
+  const m = filename.match(/^(\d{4})(\d{2})(\d{2})/);
+  if(!m) return {fileDate:null, resultDate:null};
+  const fileDate = `${m[1]}-${m[2]}-${m[3]}`;
+  // 결과 날짜 = 파일명 날짜 -1일 (전일 쿼리 기준)
+  const d = new Date(fileDate+'T00:00:00');
+  const resultDate = fmt(new Date(d.getFullYear(), d.getMonth(), d.getDate()-1));
+  return {fileDate, resultDate};
+}
+
+// ══════════════════════════════════════════════════════════
+// 트렌드K 파일 파싱 (raw:false → 날짜 문자열, 숫자 문자열)
+// ══════════════════════════════════════════════════════════
+function parseTrendK(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]]; if(!ws) return [];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+  let hi=-1,kwI=1,grpI=2,dateI=3,pcI=6,moI=7;
+  for(let i=0;i<Math.min(5,aoa.length);i++){
+    const r=aoa[i].map(v=>String(v||'').trim());
+    if(r.includes('키워드')&&r.includes('그룹')){
+      hi=i; kwI=r.indexOf('키워드'); grpI=r.indexOf('그룹'); dateI=r.indexOf('수집기간');
+      if(i+1<aoa.length){
+        const r2=aoa[i+1].map(v=>String(v||'').trim());
+        const pi=r2.indexOf('PC'),mi=r2.indexOf('Mobile');
+        if(pi>=0)pcI=pi; if(mi>=0)moI=mi;
+      }
+      break;
+    }
+  }
+  const rows=[];
+  for(let i=(hi>=0?hi+2:3);i<aoa.length;i++){
+    const r=aoa[i];
+    const kwRaw=String(r[kwI]||'').trim(); if(!kwRaw) continue;
+    const kwLower=kwRaw.toLowerCase();
+    if(!(kwLower in KW_REF)) continue;
+    const grp=KW_REF[kwLower];
+    const collectDate=String(r[dateI]||'').trim();
+    const pc=toNum(r[pcI]), mo=toNum(r[moI]);
+    rows.push({kw:kwRaw,kwLower,grp,collectDate,pc,mo});
+  }
+  return rows;
+}
+
+// ══════════════════════════════════════════════════════════
+// 초기 데이터 파싱 (raw:true → 정확한 숫자, Date 객체)
+// ══════════════════════════════════════════════════════════
+function parseInitFile(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]]; if(!ws) return 0;
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const store=loadStore(); let count=0;
+  const compByDate={};
+
+  for(let i=1;i<aoa.length;i++){
+    const row=aoa[i];
+    function fmtDt(v){
+      if(!v) return null;
+      if(v instanceof Date){
+        const d=new Date(v.getTime()+12*60*60*1000);
+        return `${d.getUTCFullYear()}-${p2(d.getUTCMonth()+1)}-${p2(d.getUTCDate())}`;
+      }
+      const s=String(v).trim();
+      if(s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0,10);
+      if(s.match(/^\d{8}$/)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      const mdy=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if(mdy){let y=mdy[3];if(y.length===2)y='20'+y;return `${y}-${p2(mdy[1])}-${p2(mdy[2])}`;}
+      return null;
+    }
+    // 섹션1
+    const dt1=fmtDt(row[0]);
+    if(dt1&&row[1]){
+      const kw=String(row[1]).trim().toLowerCase();
+      if(kw in KW_REF){
+        const sk=storeKey(kw,KW_REF[kw]);
+        if(!store[sk])store[sk]={};
+        store[sk][dt1]={pc:toNum(row[4]),mo:toNum(row[5]),type:'pc_mo'}; count++;
+      }
+    }
+    // 섹션2 (경쟁사: KB손보/삼성화재/현대해상 → 각 그룹별 PC+MO 통합)
+    const dt2=fmtDt(row[7]);
+    if(dt2&&row[8]){
+      const kw2=String(row[8]).trim().toLowerCase();
+      const compGrp=INIT_COMP_MAP[kw2];
+      if(compGrp){
+        const sk=`__comp__${compGrp}`;
+        if(!compByDate[sk])compByDate[sk]={};
+        compByDate[sk][dt2]=(compByDate[sk][dt2]||0)+toNum(row[11]); count++;
+      }
+    }
+    // 섹션3
+    const dt3=fmtDt(row[13]);
+    if(dt3&&row[14]){
+      const kw3=String(row[14]).trim().toLowerCase();
+      if(kw3 in KW_REF){
+        const sk=storeKey(kw3,KW_REF[kw3]);
+        if(!store[sk])store[sk]={};
+        store[sk][dt3]={pc:toNum(row[17]),mo:toNum(row[18]),type:'pc_mo'}; count++;
+      }
+    }
+  }
+  // 경쟁사 그룹별 날짜별 합산 저장
+  Object.entries(compByDate).forEach(([sk,dateMap])=>{
+    if(!store[sk])store[sk]={};
+    Object.entries(dateMap).forEach(([dt,pcmo])=>{store[sk][dt]={pcmo,type:'pcmo'};});
+  });
+  saveStore(store); return count;
+}
+
+// ── 파일 핸들러 ───────────────────────────────────────────
+const todayFiles=[];
+
+function handleTodayFiles(fl){
+  Array.from(fl).forEach(file=>{
+    const id='tc-'+Date.now()+Math.random().toString(36).slice(2,5);
+    const {fileDate, resultDate} = extractDateFromFilename(file.name);
+    addChip('today', file.name, id, resultDate);
+    readXLS(file, wb=>{
+      const rows = parseTrendK(wb);
+      todayFiles.push({id, name:file.name, rows, fileDate, resultDate});
+      updateChipLabel(id, rows.length+'개'+(resultDate?` · ${resultDate}`:''));
+      dbg(`[파일] ${file.name}: ${rows.length}개, 파일날짜=${fileDate}, 결과날짜=${resultDate}`);
+      updateDetectedDates();
+      updateNextBtn();
+    },err=>{updateChipLabel(id,'오류');dbg('[오류] '+err);});
+  });
+}
+function handleInitFile(file){
+  if(!file) return;
+  const el=document.getElementById('init-status'); el.textContent='읽는 중...';
+  readXLS(file,wb=>{
+    const count=parseInitFile(wb);
+    el.style.color='#00a86b'; el.textContent=`✅ ${count}개 데이터 저장 완료`;
+    document.getElementById('drop-init').style.borderColor='#00a86b';
+    document.getElementById('drop-init').style.background='#f0fff8';
+    updateStoreInfo(); updateNextBtn();
+    dbg(`[초기데이터] ${file.name}: ${count}개 저장`);
+  },err=>{el.style.color='#c0392b';el.textContent='❌ 오류: '+err;});
+}
+function readXLS(file,onSuccess,onError){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});onSuccess(wb);}
+    catch(err){onError(err.message);}
+  };
+  reader.readAsBinaryString(file);
+}
+function addChip(slot,name,id,fileDate){
+  const fl=document.getElementById('fl-'+slot);
+  const d=document.createElement('div'); d.className='fc'; d.id=id;
+  const dateBadge=fileDate?`<span class="date-badge">${fileDate}</span>`:'';
+  d.innerHTML=`<span>⏳</span>${dateBadge}<span class="fc-name" title="${name}">${name}</span><span class="fc-lbl" style="color:#888;font-size:10px;background:#e8f0e8;padding:1px 5px;border-radius:3px;white-space:nowrap"></span><span class="fc-del" onclick="removeFile('${slot}','${id}')">×</span>`;
+  fl.appendChild(d);
+  document.getElementById('cnt-today').textContent=todayFiles.length+1;
+  document.getElementById('drop-today').classList.add('has-files');
+}
+function updateChipLabel(id,label){
+  const c=document.getElementById(id); if(!c)return;
+  c.querySelector('span').textContent='✅';
+  c.querySelector('.fc-lbl').textContent=label;
+}
+function removeFile(slot,id){
+  const i=todayFiles.findIndex(f=>f.id===id); if(i>=0)todayFiles.splice(i,1);
+  document.getElementById(id)?.remove();
+  document.getElementById('cnt-today').textContent=todayFiles.length;
+  updateDetectedDates(); updateNextBtn();
+}
+function updateDetectedDates(){
+  const dates=[...new Set(todayFiles.map(f=>f.resultDate).filter(Boolean))].sort();
+  const el=document.getElementById('detected-dates');
+  const listEl=document.getElementById('date-list');
+  if(dates.length===0){el.style.display='none';return;}
+  el.style.display='block';
+  listEl.innerHTML=dates.map(d=>`<span class="date-badge" style="margin-right:4px">${d}</span>`).join('');
+}
+function updateNextBtn(){
+  const hasFiles=todayFiles.length>0 && todayFiles.some(f=>f.rows&&f.rows.length>0);
+  const hasStore=getStoreInfo().kwCount>0;
+  document.getElementById('btn-next1').disabled=!(hasFiles&&hasStore);
+}
+
+// 드래그앤드롭
+['today','init'].forEach(slot=>{
+  const el=document.getElementById('drop-'+slot); if(!el)return;
+  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+  el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+  el.addEventListener('drop',e=>{
+    e.preventDefault();el.classList.remove('drag');
+    if(slot==='today')handleTodayFiles(e.dataTransfer.files);
+    else if(slot==='init'&&e.dataTransfer.files[0])handleInitFile(e.dataTransfer.files[0]);
+  });
+});
+
+// ── 스텝 ──────────────────────────────────────────────────
+function goStep(n){
+  for(let i=1;i<=4;i++){
+    document.getElementById('p'+i).classList.toggle('active',i===n);
+    const s=document.getElementById('s'+i);
+    s.classList.remove('active','done');
+    if(i<n)s.classList.add('done');else if(i===n)s.classList.add('active');
+  }
+  if(n===2)runCalc();
+  if(n===3)updateNegList();
+  window.scrollTo(0,0);
+}
+
+// ── 유틸 ──────────────────────────────────────────────────
+function fmt(d){return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
+function p2(n){return String(n).padStart(2,'0')}
+function toNum(v){return parseFloat(String(v||'').replace(/,/g,'').trim())||0;}
+function r2(v){return Math.round(v*100)/100}
+function setP(v){document.getElementById('prog').style.width=v+'%'}
+function setL(m){document.getElementById('loadingTxt').textContent=m}
+const DAY_KR=['일','월','화','수','목','금','토'];
+
+// ══════════════════════════════════════════════════════════
+// 계산 실행 - 날짜별로 각각 계산
+// calcResults: { "2026-06-19": { "DB손보": [...], ... }, ... }
+// ══════════════════════════════════════════════════════════
+let calcResults={};  // { date: { group: [rows] } }
+let calcDates=[];    // 정렬된 날짜 목록
+
+function runCalc(){
+  document.getElementById('loadingMsg').classList.add('show');
+  document.getElementById('resultArea').style.display='none';
+  document.getElementById('dbgLog').textContent='';
+  setP(0);
+
+  setTimeout(()=>{
+    try{
+      const store=loadStore();
+
+      // 파일을 결과날짜별로 그룹핑 (파일명날짜 -1일)
+      const filesByDate={}; // { "2026-06-18": [file,...] }
+      todayFiles.forEach(f=>{
+        const dt=f.resultDate||'unknown';
+        if(!filesByDate[dt])filesByDate[dt]=[];
+        filesByDate[dt].push(f);
+      });
+
+      calcDates=Object.keys(filesByDate).filter(d=>d!=='unknown').sort();
+      if(filesByDate['unknown']){
+        dbg(`[경고] 날짜 미인식 파일: ${filesByDate['unknown'].map(f=>f.name).join(', ')}`);
+      }
+      dbg(`계산 날짜: ${calcDates.join(', ')}`);
+      calcResults={};
+
+      calcDates.forEach((baseDate,di)=>{
+        const bd=new Date(baseDate+'T00:00:00');
+        const dayKr=DAY_KR[bd.getDay()];
+        const endDate=fmt(new Date(bd.getFullYear(),bd.getMonth(),bd.getDate()-1));
+        const startDate=fmt(new Date(bd.getFullYear(),bd.getMonth(),bd.getDate()-29));
+        dbg(`\n[${baseDate}(${dayKr})] 전29일: ${startDate}~${endDate}`);
+
+        // 오늘 파일 합산
+        const todayMap={};
+        const compTodayMap={}; // { '경쟁사_삼성': pcmo합산, ... }
+        filesByDate[baseDate].forEach(f=>{
+          f.rows.forEach(r=>{
+            if(COMP_GROUPS.has(r.grp)){
+              compTodayMap[r.grp]=(compTodayMap[r.grp]||0)+r.pc+r.mo;
+            } else {
+              todayMap[storeKey(r.kwLower,r.grp)]=r;
+            }
+          });
+        });
+
+        // 전29일 합산 (store에서)
+        const prev29Map={};
+        Object.entries(store).forEach(([sk,dates])=>{
+          if(sk.startsWith('__comp__'))return; // 경쟁사는 별도 처리
+          let pcSum=0,moSum=0,cnt=0;
+          Object.entries(dates).forEach(([dt,val])=>{
+            if(dt>=startDate&&dt<=endDate){pcSum+=val.pc||0;moSum+=val.mo||0;cnt++;}
+          });
+          if(cnt>0)prev29Map[sk]={pc:pcSum,mo:moSum,cnt};
+        });
+        // 경쟁사 그룹별 전29일 합산
+        const prev29CompMap={}; // { '경쟁사_삼성': pcmo합산, ... }
+        COMP_GROUPS.forEach(grp=>{
+          const sk=`__comp__${grp}`;
+          if(store[sk]){
+            let sum=0;
+            Object.entries(store[sk]).forEach(([dt,val])=>{
+              if(dt>=startDate&&dt<=endDate)sum+=val.pcmo||0;
+            });
+            prev29CompMap[grp]=sum;
+          } else {
+            prev29CompMap[grp]=0;
+          }
+        });
+        dbg(`전29일 키워드: ${Object.keys(prev29Map).length}개`);
+
+        // 1일치 계산
+        calcResults[baseDate]={};
+        GROUP_ORDER.forEach(g=>{calcResults[baseDate][g]=[];});
+
+        Object.entries(todayMap).forEach(([sk,today])=>{
+          const prev29=prev29Map[sk]||{pc:0,mo:0,cnt:0};
+          const pc1=r2(today.pc-prev29.pc);
+          const mo1=r2(today.mo-prev29.mo);
+          const gName=today.grp;
+          if(!calcResults[baseDate][gName])calcResults[baseDate][gName]=[];
+          calcResults[baseDate][gName].push({
+            kw:today.kw,grp:gName,date:baseDate,day:dayKr,
+            collectDate:today.collectDate||baseDate.replace(/-/g,''),
+            pc1,mo1,pcmo1:null,
+            pc_t:today.pc,mo_t:today.mo,pc_y:prev29.pc,mo_y:prev29.mo,
+            isComp:false,negPc:pc1<0,negMo:mo1<0,negPcmo:false,
+          });
+        });
+
+        // 경쟁사 그룹별 1일치 계산
+        COMP_GROUPS.forEach(grp=>{
+          const todayPcmo=compTodayMap[grp]||0;
+          const prev29Pcmo=prev29CompMap[grp]||0;
+          if(todayPcmo>0||prev29Pcmo>0){
+            const pcmo1=r2(todayPcmo-prev29Pcmo);
+            if(!calcResults[baseDate][grp])calcResults[baseDate][grp]=[];
+            calcResults[baseDate][grp].push({
+              kw:grp+' 전체',grp,date:baseDate,day:dayKr,
+              collectDate:baseDate.replace(/-/g,''),
+              pc1:null,mo1:null,pcmo1,
+              pc_t:null,mo_t:null,pc_y:null,mo_y:null,
+              pcmo_t:todayPcmo,pcmo_y:prev29Pcmo,
+              isComp:true,negPc:false,negMo:false,negPcmo:pcmo1<0,
+            });
+          }
+        });
+
+        // 빈 그룹 제거
+        Object.keys(calcResults[baseDate]).forEach(g=>{
+          if(!calcResults[baseDate][g].length)delete calcResults[baseDate][g];
+        });
+
+        // store에 저장 (파일명 원본 날짜 = fileDate 기준)
+        const fileDateKey = filesByDate[baseDate][0]?.fileDate || baseDate;
+        const newStore=loadStore();
+        Object.entries(todayMap).forEach(([sk,today])=>{
+          if(!newStore[sk])newStore[sk]={};
+          newStore[sk][fileDateKey]={pc:today.pc,mo:today.mo,type:'pc_mo'};
+          const dts=Object.keys(newStore[sk]).sort();
+          if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
+        });
+        if(Object.keys(compTodayMap).length>0){
+          COMP_GROUPS.forEach(grp=>{
+            if(compTodayMap[grp]){
+              const sk=`__comp__${grp}`;
+              if(!newStore[sk])newStore[sk]={};
+              newStore[sk][fileDateKey]={pcmo:compTodayMap[grp],type:'pcmo'};
+              const dts=Object.keys(newStore[sk]).sort();
+              if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
+            }
+          });
+        }
+        saveStore(newStore);
+        dbg(`[저장] 파일날짜=${fileDateKey}, 결과날짜=${baseDate} 완료`);
+
+        setP(Math.round((di+1)/calcDates.length*90));
+      });
+
+      updateStoreInfo();
+      setP(100);
+      renderResults();
+      document.getElementById('loadingMsg').classList.remove('show');
+      document.getElementById('resultArea').style.display='block';
+
+    }catch(err){
+      setL('오류: '+err.message);
+      dbg('ERROR: '+err.stack);
+    }
+  },100);
+}
+
+// ── 결과 렌더링 (그룹별 탭, 날짜 컬럼 포함) ──────────────
+function renderResults(){
+  // 전체 집계
+  let totalKw=0,totalNeg=0;
+  calcDates.forEach(dt=>{
+    Object.values(calcResults[dt]).forEach(rows=>{
+      totalKw+=rows.length;
+      totalNeg+=rows.filter(r=>r.negPc||r.negMo||r.negPcmo).length;
+    });
+  });
+
+  const dateRange=calcDates.length===1
+    ? calcDates[0]
+    : `${calcDates[0]} ~ ${calcDates[calcDates.length-1]}`;
+
+  document.getElementById('summaryCards').innerHTML=`
+    <div class="sc"><div class="sl">계산 기간</div><div class="sv" style="font-size:12px">${dateRange}</div></div>
+    <div class="sc"><div class="sl">날짜 수</div><div class="sv">${calcDates.length}일</div></div>
+    <div class="sc"><div class="sl">총 키워드</div><div class="sv">${totalKw}</div></div>
+    <div class="sc ${totalNeg>0?'warn':'ok'}"><div class="sl">음수 키워드</div><div class="sv">${totalNeg}</div></div>`;
+
+  // 그룹별 탭 구성
+  const allGroups=[...new Set(calcDates.flatMap(dt=>Object.keys(calcResults[dt])))];
+  const orderedGroups=GROUP_ORDER.filter(g=>allGroups.includes(g));
+
+  const tabsEl=document.getElementById('resultTabs');
+  const panesEl=document.getElementById('resultPanes');
+  tabsEl.innerHTML=''; panesEl.innerHTML='';
+
+  orderedGroups.forEach((gk,i)=>{
+    // 이 그룹의 모든 날짜 행 합치기
+    const allRows=calcDates.flatMap(dt=>(calcResults[dt][gk]||[]));
+    const neg=allRows.filter(r=>r.negPc||r.negMo||r.negPcmo).length;
+    const isComp=allRows[0]?.isComp;
+
+    const tab=document.createElement('button');
+    tab.className='rtab'+(i===0?' on':'');
+    tab.innerHTML=gk+(neg>0?` <span style="color:#c0392b">⚠${neg}</span>`:'');
+    tab.onclick=e=>showRTab(e,'rp-'+i);
+    tabsEl.appendChild(tab);
+
+    const pane=document.createElement('div');
+    pane.className='rpane'+(i===0?' on':'');
+    pane.id='rp-'+i;
+    pane.innerHTML=`<div class="tbl-wrap">${buildTable(allRows,isComp)}</div>`;
+    panesEl.appendChild(pane);
+  });
+
+  // 다운로드 버튼 (step 4에 있음 — 여기서는 내용만 세팅)
+  document.getElementById('dlButtons').innerHTML=`
+    <div class="dl-row" style="background:#f0fff8;border-color:#b3e6cc">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#00a86b">📊 전체 통합 파일 (1개 시트)</div>
+        <div style="font-size:10px;color:#555">그룹 · 키워드 · 날짜 · 요일 · PC 1일 · MO 1일 · PC 30일 · MO 30일 · PC+MO 1일</div>
+      </div>
+      <button class="btn btn-green btn-sm" style="margin-left:auto" onclick="dlAll()">다운로드</button>
+    </div>`;
+
+  // 음수 보정 탭 목록 갱신
+  updateNegList();
+}
+
+function buildTable(rows,isComp){
+  // 날짜 컬럼 추가
+  if(isComp){
+    const h=['날짜','요일','그룹','키워드','PC+MO 1일치','PC+MO 최근30일','PC+MO 전29일합'];
+    const thead='<tr>'+h.map(x=>`<th>${x}</th>`).join('')+'</tr>';
+    const tbody=rows.map(r=>`<tr>
+      <td>${r.date}</td><td style="text-align:center">${r.day}</td><td>${r.grp}</td><td>${r.kw}</td>
+      <td class="${r.negPcmo?'neg':''}">${r.pcmo1.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+      <td>${r.pcmo_t.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+      <td>${r.pcmo_y.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    </tr>`).join('');
+    return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  }
+  const h=['날짜','요일','그룹','키워드','PC 1일치','MO 1일치','PC 최근30일','MO 최근30일','PC 전29일합','MO 전29일합'];
+  const thead='<tr>'+h.map(x=>`<th>${x}</th>`).join('')+'</tr>';
+  const tbody=rows.map(r=>`<tr>
+    <td>${r.date}</td><td style="text-align:center">${r.day}</td><td>${r.grp}</td><td>${r.kw}</td>
+    <td class="${r.negPc?'neg':''}">${r.pc1.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    <td class="${r.negMo?'neg':''}">${r.mo1.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    <td>${r.pc_t.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    <td>${r.mo_t.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    <td>${r.pc_y.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+    <td>${r.mo_y.toLocaleString('ko-KR',{maximumFractionDigits:1})}</td>
+  </tr>`).join('');
+  return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+
+function showRTab(e,paneId){
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.rpane').forEach(p=>p.classList.remove('on'));
+  document.getElementById(paneId).classList.add('on'); e.target.classList.add('on');
+}
+
+// ── 다운로드: 1개 파일 1개 시트 ──────────────────────────
+function dlAll(){
+  const wb=XLSX.utils.book_new();
+  // 브랜드&업종: 그룹/키워드/날짜/요일/PC 1일/MO 1일/PC 30일/MO 30일
+  // 경쟁사: 그룹/키워드/날짜/요일/PC+MO 1일
+  const header=['그룹','키워드','날짜','요일','PC 1일','MO 1일','PC 30일','MO 30일','PC+MO 1일'];
+  const data=[header];
+
+  calcDates.forEach(dt=>{
+    GROUP_ORDER.forEach(gk=>{
+      const rows=calcResults[dt][gk]; if(!rows||!rows.length)return;
+      rows.forEach(r=>{
+        if(r.isComp){
+          // 경쟁사: 그룹/키워드/날짜/요일/PC+MO 1일 (나머지 빈칸)
+          data.push([r.grp,r.kw,r.date,r.day,'','','','',r.pcmo1]);
+        } else {
+          // 브랜드&업종: 그룹/키워드/날짜/요일/PC 1일/MO 1일/PC 30일/MO 30일
+          data.push([r.grp,r.kw,r.date,r.day,r.pc1,r.mo1,r.pc_t,r.mo_t,'']);
+        }
+      });
+    });
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:14},{wch:22},{wch:12},{wch:5},{wch:12},{wch:12},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,'1일치_전체');
+
+  const dateStr=calcDates.length===1
+    ? calcDates[0].replace(/-/g,'')
+    : `${calcDates[0].replace(/-/g,'')}-${calcDates[calcDates.length-1].replace(/-/g,'')}`;
+  XLSX.writeFile(wb,`${dateStr}_DB손해보험_1일치.xlsx`);
+}
+
+// ══════════════════════════════════════════════════════════
+// 음수 보정 — 네이버 데이터랩 API
+// ══════════════════════════════════════════════════════════
+function saveApiKeys(){
+  const id  = document.getElementById('naverClientId').value.trim();
+  const sec = document.getElementById('naverClientSecret').value.trim();
+  if(!id || !sec){ alert('ID와 Secret 모두 입력해주세요.'); return; }
+  localStorage.setItem('naver_api_id',  id);
+  localStorage.setItem('naver_api_sec', sec);
+  const el = document.getElementById('apiKeySaved');
+  el.style.display = 'inline'; setTimeout(()=>el.style.display='none', 2000);
+}
+
+function loadApiKeys(){
+  const id  = localStorage.getItem('naver_api_id')  || '';
+  const sec = localStorage.getItem('naver_api_sec') || '';
+  if(id)  document.getElementById('naverClientId').value  = id;
+  if(sec) document.getElementById('naverClientSecret').value = sec;
+}
+
+// 계산 완료 후 음수 목록 업데이트
+function updateNegList(){
+  const listEl = document.getElementById('fix-neg-list');
+  const btn    = document.getElementById('btn-fix-run');
+  if(!calcDates.length){ listEl.textContent='계산 먼저 실행해주세요.'; btn.disabled=true; return; }
+
+  // 음수 키워드 수집
+  const negItems = []; // { kw, grp, date, day }
+  calcDates.forEach(dt=>{
+    Object.values(calcResults[dt]||{}).forEach(rows=>{
+      rows.forEach(r=>{
+        if(r.negPc || r.negMo || r.negPcmo) negItems.push(r);
+      });
+    });
+  });
+
+  if(!negItems.length){
+    listEl.innerHTML='<span style="color:#00a86b">✅ 음수 키워드 없음</span>';
+    btn.disabled = true; return;
+  }
+
+  listEl.innerHTML = `<div style="margin-bottom:6px;color:#c0392b;font-weight:700">음수 키워드 ${negItems.length}개 발견</div>`
+    + negItems.map(r=>`<div style="padding:3px 0;border-bottom:1px solid #f0f0f4">
+        <span style="color:#003087;font-weight:600">${r.kw}</span>
+        <span style="color:#888;margin-left:6px">${r.grp} · ${r.date}(${r.day})</span>
+        ${r.isComp ? `<span style="color:#c0392b;margin-left:6px">PC+MO: ${r.pcmo1}</span>`
+          : `<span style="color:#c0392b;margin-left:6px">PC: ${r.pc1} / MO: ${r.mo1}</span>`}
+      </div>`).join('');
+  btn.disabled = false;
+}
+
+async function runNegFix(){
+  const clientId  = localStorage.getItem('naver_api_id');
+  const clientSec = localStorage.getItem('naver_api_sec');
+  if(!clientId || !clientSec){
+    alert('API 키를 먼저 저장해주세요.'); return;
+  }
+
+  const loadEl = document.getElementById('fix-loading');
+  const txtEl  = document.getElementById('fix-loading-txt');
+  const resEl  = document.getElementById('fix-result-area');
+  const detEl  = document.getElementById('fix-result-detail');
+  loadEl.classList.add('show'); resEl.style.display='none';
+
+  // 날짜별·그룹별 음수 키워드 수집
+  const negByDate = {}; // { date: [ {kw, grp, isComp} ] }
+  calcDates.forEach(dt=>{
+    Object.values(calcResults[dt]||{}).forEach(rows=>{
+      rows.forEach(r=>{
+        if(r.negPc || r.negMo || r.negPcmo){
+          if(!negByDate[dt]) negByDate[dt]=[];
+          negByDate[dt].push(r);
+        }
+      });
+    });
+  });
+
+  let fixedCount = 0;
+  const log = [];
+
+  for(const [date, negRows] of Object.entries(negByDate)){
+    // 파일날짜 = resultDate+1일
+    const bd = new Date(date+'T00:00:00');
+    const fileDate = fmt(new Date(bd.getFullYear(), bd.getMonth(), bd.getDate()+1));
+    const startDate = date; const endDate = date;
+
+    // 비경쟁사: PC / MO 각각
+    const nonCompRows = negRows.filter(r=>!r.isComp);
+    for(const r of nonCompRows){
+      // PC 음수이면 PC 조회
+      if(r.negPc){
+        txtEl.textContent = `API 조회: ${r.kw} PC (${date})`;
+        try{
+          const val = await fetchDatalab(clientId, clientSec, r.kw, startDate, endDate, 'pc');
+          if(val !== null){
+            r.pc1 = r2(val); r.negPc = false;
+            fixedCount++; log.push(`✅ ${r.kw} PC → ${r.pc1}`);
+          }
+        } catch(e){ log.push(`❌ ${r.kw} PC 실패: ${e.message}`); }
+      }
+      // MO 음수이면 MO 조회
+      if(r.negMo){
+        txtEl.textContent = `API 조회: ${r.kw} MO (${date})`;
+        try{
+          const val = await fetchDatalab(clientId, clientSec, r.kw, startDate, endDate, 'mo');
+          if(val !== null){
+            r.mo1 = r2(val); r.negMo = false;
+            fixedCount++; log.push(`✅ ${r.kw} MO → ${r.mo1}`);
+          }
+        } catch(e){ log.push(`❌ ${r.kw} MO 실패: ${e.message}`); }
+      }
+    }
+
+    // 경쟁사: PC+MO
+    const compRows = negRows.filter(r=>r.isComp);
+    for(const r of compRows){
+      txtEl.textContent = `API 조회: ${r.grp} PC+MO (${date})`;
+      try{
+        const val = await fetchDatalab(clientId, clientSec, r.grp.replace('경쟁사_',''), startDate, endDate, '');
+        if(val !== null){
+          r.pcmo1 = r2(val); r.negPcmo = false;
+          fixedCount++; log.push(`✅ ${r.grp} PC+MO → ${r.pcmo1}`);
+        }
+      } catch(e){ log.push(`❌ ${r.grp} 실패: ${e.message}`); }
+    }
+  }
+
+  loadEl.classList.remove('show');
+  resEl.style.display = 'block';
+  detEl.innerHTML = `<div style="margin-bottom:6px">보정 완료: <strong>${fixedCount}개</strong></div>`
+    + log.map(l=>`<div style="padding:2px 0;font-size:10px">${l}</div>`).join('');
+
+  // 결과 화면 갱신
+  if(fixedCount > 0) renderResults();
+  updateNegList();
+}
+
+async function fetchDatalab(clientId, clientSec, kw, startDate, endDate, device){
+  const body = {
+    startDate, endDate,
+    timeUnit: 'date',
+    keywordGroups: [{ groupName: kw, keywords: [kw] }],
+  };
+  if(device === 'pc') body.device = 'pc';
+  else if(device === 'mo') body.device = 'mo';
+
+  const res = await fetch('https://naver-proxy-m8ge.onrender.com/proxy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Naver-Client-Id': clientId,
+      'X-Naver-Client-Secret': clientSec,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  // results[0].data[0].ratio = 해당 날짜 상대지수
+  const ratio = data?.results?.[0]?.data?.[0]?.ratio;
+  return ratio !== undefined ? ratio : null;
+}
+
+// ── 초기화 ─────────────────────────────────────────────────
+updateStoreInfo(); updateNextBtn(); loadApiKeys();</script>
+</body>
+</html>
