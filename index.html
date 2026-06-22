@@ -647,15 +647,14 @@ function runCalc(){
 
   setTimeout(()=>{
     try{
-      // store: 초기 데이터(30일 누적값) + 이전에 저장된 1일치값 — prev29 계산의 기준
-      // liveCalc: 이번 세션에서 계산된 날짜별 오늘 트렌드K 파일의 30일값(today.pc/mo)을 임시 보관
-      //           → 금→토→일 연속 계산 시, 앞 날짜 결과를 다음 날짜 prev29에 반영하기 위해 사용
-      //           ※ 절대 초기 store의 날짜 키를 덮어쓰지 않음 — 오염 방지
       const store=loadStore();
-      const liveCalc={}; // { sk: { date: { pc, mo } } } — 오늘 계산된 1일치를 임시 저장
+      // liveCalc: 이번 세션에서 계산된 1일치 임시저장
+      // store에 없는 날짜만 저장 → 다음 날짜 prev29에 누적
+      const liveCalc={}; // { sk: { date: { pc, mo } } }
+      const liveCalcComp={}; // { grp: { date: pcmo } }
 
-      // 파일 내 각 row의 resultDate 기준으로 날짜별 그룹핑
-      const filesByDate={}; // { "2026-06-18": [rows...] }
+      // 날짜별 rows 그룹핑
+      const filesByDate={};
       todayFiles.forEach(f=>{
         f.rows.forEach(row=>{
           const dt=row.resultDate||'unknown';
@@ -665,9 +664,6 @@ function runCalc(){
       });
 
       calcDates=Object.keys(filesByDate).filter(d=>d!=='unknown').sort();
-      if(filesByDate['unknown']){
-        dbg(`[경고] 날짜 미인식 파일: ${filesByDate['unknown'].map(f=>f.name).join(', ')}`);
-      }
       dbg(`계산 날짜: ${calcDates.join(', ')}`);
       calcResults={};
 
@@ -678,9 +674,9 @@ function runCalc(){
         const startDate=fmt(new Date(bd.getFullYear(),bd.getMonth(),bd.getDate()-29));
         dbg(`\n[${baseDate}(${dayKr})] 전29일: ${startDate}~${endDate}`);
 
-        // 오늘 파일 합산 (해당 날짜의 rows)
+        // 오늘 파일 합산
         const todayMap={};
-        const compTodayMap={}; // { '경쟁사_삼성화재': pcmo합산, ... }
+        const compTodayMap={};
         filesByDate[baseDate].forEach(r=>{
           if(COMP_GROUPS.has(r.grp)){
             compTodayMap[r.grp]=(compTodayMap[r.grp]||0)+r.pc+r.mo;
@@ -689,67 +685,51 @@ function runCalc(){
           }
         });
 
-        // ─────────────────────────────────────────────────────────────
-        // 전29일 합산: store(초기 데이터 + 이전 저장값) 기반으로만 계산
-        // 단, 이번 세션에서 앞 날짜를 이미 계산했다면 그 날의 1일치를 더함
-        // → liveCalc에서 해당 날짜 범위의 값을 추가 합산
-        // ─────────────────────────────────────────────────────────────
+        // ── prev29 계산 (일반 키워드) ──────────────────────────
+        // store(초기파일) + liveCalc(이번세션 앞날짜) 합산
+        // store에 baseDate 자체가 있어도 prev29 범위(~endDate)에 포함되지 않으므로 안전
         const prev29Map={};
-        Object.entries(store).forEach(([sk,dates])=>{
+        const allSks=new Set([...Object.keys(store),...Object.keys(liveCalc)]);
+        allSks.forEach(sk=>{
           if(sk.startsWith('__comp__'))return;
-          let pcSum=0,moSum=0,cnt=0;
-          Object.entries(dates).forEach(([dt,val])=>{
-            if(dt>=startDate&&dt<=endDate){pcSum+=val.pc||0;moSum+=val.mo||0;cnt++;}
+          let pcSum=0,moSum=0;
+          // store에서 범위 내 합산
+          Object.entries(store[sk]||{}).forEach(([dt,val])=>{
+            if(dt>=startDate&&dt<=endDate){pcSum+=val.pc||0;moSum+=val.mo||0;}
           });
-          // liveCalc에서 이번 세션 앞 날짜 1일치 추가 (store에 없는 날짜만)
-          if(liveCalc[sk]){
-            Object.entries(liveCalc[sk]).forEach(([dt,val])=>{
-              if(dt>=startDate&&dt<=endDate&&!(dates[dt])){
-                pcSum+=val.pc||0; moSum+=val.mo||0; cnt++;
-              }
-            });
-          }
-          if(cnt>0)prev29Map[sk]={pc:pcSum,mo:moSum,cnt};
-        });
-        // liveCalc에만 있는 키(store에 없는 새 키워드)도 처리
-        Object.entries(liveCalc).forEach(([sk,lcDates])=>{
-          if(sk.startsWith('__comp__'))return;
-          if(prev29Map[sk])return; // 이미 처리됨
-          let pcSum=0,moSum=0,cnt=0;
-          Object.entries(lcDates).forEach(([dt,val])=>{
-            if(dt>=startDate&&dt<=endDate){pcSum+=val.pc||0;moSum+=val.mo||0;cnt++;}
+          // liveCalc에서 범위 내 합산 (store에 없는 날짜만)
+          Object.entries(liveCalc[sk]||{}).forEach(([dt,val])=>{
+            if(dt>=startDate&&dt<=endDate&&!(store[sk]&&store[sk][dt])){
+              pcSum+=val.pc||0; moSum+=val.mo||0;
+            }
           });
-          if(cnt>0)prev29Map[sk]={pc:pcSum,mo:moSum,cnt};
+          prev29Map[sk]={pc:pcSum,mo:moSum};
         });
 
-        // 경쟁사 그룹별 전29일 합산
+        // ── prev29 계산 (경쟁사) ───────────────────────────────
         const prev29CompMap={};
         COMP_GROUPS.forEach(grp=>{
           const sk=`__comp__${grp}`;
           let sum=0;
-          if(store[sk]){
-            Object.entries(store[sk]).forEach(([dt,val])=>{
-              if(dt>=startDate&&dt<=endDate)sum+=val.pcmo||0;
-            });
-          }
-          // liveCalc 경쟁사 앞 날짜 보정
-          if(liveCalc[sk]){
-            Object.entries(liveCalc[sk]).forEach(([dt,val])=>{
-              if(dt>=startDate&&dt<=endDate&&!(store[sk]&&store[sk][dt])){
-                sum+=val.pcmo||0;
-              }
-            });
-          }
+          Object.entries(store[sk]||{}).forEach(([dt,val])=>{
+            if(dt>=startDate&&dt<=endDate)sum+=val.pcmo||0;
+          });
+          // liveCalcComp: store에 없는 앞 날짜만
+          Object.entries(liveCalcComp[grp]||{}).forEach(([dt,val])=>{
+            if(dt>=startDate&&dt<=endDate&&!(store[sk]&&store[sk][dt])){
+              sum+=val||0;
+            }
+          });
           prev29CompMap[grp]=sum;
         });
-        dbg(`전29일 키워드: ${Object.keys(prev29Map).length}개`);
+        dbg(`prev29 키워드: ${Object.keys(prev29Map).length}개`);
 
-        // 1일치 계산
+        // ── 1일치 계산 ─────────────────────────────────────────
         calcResults[baseDate]={};
         GROUP_ORDER.forEach(g=>{calcResults[baseDate][g]=[];});
 
         Object.entries(todayMap).forEach(([sk,today])=>{
-          const prev29=prev29Map[sk]||{pc:0,mo:0,cnt:0};
+          const prev29=prev29Map[sk]||{pc:0,mo:0};
           const pc1=r2(today.pc-prev29.pc);
           const mo1=r2(today.mo-prev29.mo);
           const gName=today.grp;
@@ -763,7 +743,6 @@ function runCalc(){
           });
         });
 
-        // 경쟁사 그룹별 1일치 계산
         COMP_GROUPS.forEach(grp=>{
           const todayPcmo=compTodayMap[grp]||0;
           const prev29Pcmo=prev29CompMap[grp]||0;
@@ -781,52 +760,55 @@ function runCalc(){
           }
         });
 
-        // 빈 그룹 제거
         Object.keys(calcResults[baseDate]).forEach(g=>{
           if(!calcResults[baseDate][g].length)delete calcResults[baseDate][g];
         });
 
-        // ─────────────────────────────────────────────────────────────
-        // liveCalc에 계산된 1일치(pc1/mo1)를 저장
-        // → 다음 날짜 prev29 합산 시, 이 날짜의 1일치로 누적
-        // ※ store(초기 데이터)와 성격이 같은 1일치 값 — 오염 없이 누적 가능
-        // ─────────────────────────────────────────────────────────────
+        // ── liveCalc 저장 (store에 없는 날짜만) ────────────────
         Object.entries(todayMap).forEach(([sk,today])=>{
-          // store에 이미 baseDate 데이터 있으면 liveCalc에 저장 안 함 (중복 방지)
-          if(store[sk]&&store[sk][baseDate]) return;
+          // store에 이미 baseDate 있으면 저장 안 함 (중복 방지)
+          if(store[sk]&&store[sk][baseDate])return;
           const grpRows=calcResults[baseDate][today.grp]||[];
           const row=grpRows.find(r=>r.kw.toLowerCase()===today.kwLower);
           const pc1val=row?row.pc1:r2(today.pc-(prev29Map[sk]?.pc||0));
           const mo1val=row?row.mo1:r2(today.mo-(prev29Map[sk]?.mo||0));
           if(!liveCalc[sk])liveCalc[sk]={};
           liveCalc[sk][baseDate]={pc:pc1val,mo:mo1val};
+          dbg(`  [liveCalc저장] ${sk} ${baseDate}: pc=${pc1val} mo=${mo1val}`);
         });
-        // 경쟁사는 liveCalc에 저장하지 않음
-        // → 경쟁사 prev29는 초기파일(store)에서만 합산
-        // → 연속 날짜 계산 시 이전 날짜 경쟁사 1일치가 prev29에 누적되면 오차 발생
 
-        // localStorage 저장 — 일반 키워드: liveCalc의 1일치, 경쟁사: 직접 계산
+        // 경쟁사 liveCalc: store에 없는 날짜만
+        COMP_GROUPS.forEach(grp=>{
+          const sk=`__comp__${grp}`;
+          if(store[sk]&&store[sk][baseDate])return; // store에 있으면 저장 안 함
+          const compRows=calcResults[baseDate][grp]||[];
+          if(!compRows.length)return;
+          if(!liveCalcComp[grp])liveCalcComp[grp]={};
+          liveCalcComp[grp][baseDate]=compRows[0].pcmo1;
+          dbg(`  [liveCalcComp저장] ${grp} ${baseDate}: pcmo=${compRows[0].pcmo1}`);
+        });
+
+        // ── localStorage 저장 ───────────────────────────────────
         const saveSnap=loadStore();
-        Object.entries(todayMap).forEach(([sk])=>{
-          const lc=liveCalc[sk]?.[baseDate];
-          if(!lc)return;
+        // 일반 키워드: liveCalc에 저장된 것만 (store에 없는 날짜)
+        Object.entries(liveCalc).forEach(([sk,dates])=>{
+          const val=dates[baseDate]; if(!val)return;
           if(!saveSnap[sk])saveSnap[sk]={};
-          saveSnap[sk][baseDate]={pc:lc.pc,mo:lc.mo,type:'pc_mo'};
+          saveSnap[sk][baseDate]={pc:val.pc,mo:val.mo,type:'pc_mo'};
           const dts=Object.keys(saveSnap[sk]).sort();
           if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete saveSnap[sk][d]);
         });
-        COMP_GROUPS.forEach(grp=>{
-          const compRows=calcResults[baseDate][grp]||[];
-          if(!compRows.length)return;
+        // 경쟁사: liveCalcComp에 저장된 것만
+        Object.entries(liveCalcComp).forEach(([grp,dates])=>{
+          const val=dates[baseDate]; if(val===undefined)return;
           const sk=`__comp__${grp}`;
-          const pcmo1val=compRows[0].pcmo1;
           if(!saveSnap[sk])saveSnap[sk]={};
-          saveSnap[sk][baseDate]={pcmo:pcmo1val,type:'pcmo'};
+          saveSnap[sk][baseDate]={pcmo:val,type:'pcmo'};
           const dts=Object.keys(saveSnap[sk]).sort();
           if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete saveSnap[sk][d]);
         });
         saveStore(saveSnap);
-        dbg(`[저장] resultDate=${baseDate}, 1일치값으로 저장 완료`);
+        dbg(`[저장완료] ${baseDate}`);
 
         setP(Math.round((di+1)/calcDates.length*90));
       });
