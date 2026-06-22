@@ -752,12 +752,17 @@ function runCalc(){
           if(!calcResults[baseDate][g].length)delete calcResults[baseDate][g];
         });
 
-        // store에 저장 (수집기간 기준 fileDate)
-        const fileDateKey = filesByDate[baseDate][0]?.fileDate || baseDate;
+        // store에 저장 — 30일 누적값(today.pc)이 아닌 계산된 1일치(pc1)를 저장
+        // 다음 날짜 계산 시 전29일 합산에 정확한 1일치 값이 들어가야 하기 때문
+        const fileDateKey = baseDate; // 결과날짜 기준으로 저장
         const newStore=loadStore();
         Object.entries(todayMap).forEach(([sk,today])=>{
+          const grpRows=calcResults[baseDate][today.grp]||[];
+          const row=grpRows.find(r=>r.kw.toLowerCase()===today.kwLower);
+          const pc1val = row ? row.pc1 : r2(today.pc-(prev29Map[sk]?.pc||0));
+          const mo1val = row ? row.mo1 : r2(today.mo-(prev29Map[sk]?.mo||0));
           if(!newStore[sk])newStore[sk]={};
-          newStore[sk][fileDateKey]={pc:today.pc,mo:today.mo,type:'pc_mo'};
+          newStore[sk][fileDateKey]={pc:pc1val,mo:mo1val,type:'pc_mo'};
           const dts=Object.keys(newStore[sk]).sort();
           if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
         });
@@ -765,15 +770,17 @@ function runCalc(){
           COMP_GROUPS.forEach(grp=>{
             if(compTodayMap[grp]){
               const sk=`__comp__${grp}`;
+              const compRows=calcResults[baseDate][grp]||[];
+              const pcmo1val = compRows[0] ? compRows[0].pcmo1 : r2(compTodayMap[grp]-(prev29CompMap[grp]||0));
               if(!newStore[sk])newStore[sk]={};
-              newStore[sk][fileDateKey]={pcmo:compTodayMap[grp],type:'pcmo'};
+              newStore[sk][fileDateKey]={pcmo:pcmo1val,type:'pcmo'};
               const dts=Object.keys(newStore[sk]).sort();
               if(dts.length>90)dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
             }
           });
         }
         saveStore(newStore);
-        dbg(`[저장] 파일날짜=${fileDateKey}, 결과날짜=${baseDate} 완료`);
+        dbg(`[저장] 결과날짜=${baseDate}, PC1일치/MO1일치 기준으로 저장 완료`);
 
         setP(Math.round((di+1)/calcDates.length*90));
       });
