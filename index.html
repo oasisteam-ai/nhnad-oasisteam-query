@@ -767,10 +767,8 @@ function runCalc(){
         // ── store 저장: 계산된 1일 쿼리값(pc1, mo1) 저장 ──
         // 재계산 시에도 덮어쓰기로 최신값 반영
         const newStore=loadStore();
-        const rawCollect=filesByDate[baseDate][0]?.collectDate||'';
-        const fileDateKey=rawCollect.length>=8
-          ?`${rawCollect.slice(0,4)}-${rawCollect.slice(4,6)}-${rawCollect.slice(6,8)}`
-          :baseDate;
+        // 저장 키 = 결과날짜(baseDate) 기준 — 전29일 합산 범위와 일치시키기 위함
+        const fileDateKey=baseDate;
 
         Object.entries(todayMap).forEach(([sk,today])=>{
           if(!newStore[sk]) newStore[sk]={};
@@ -799,7 +797,7 @@ function runCalc(){
         });
 
         saveStore(newStore);
-        dbg(`[저장] 수집기간=${fileDateKey}, 결과날짜=${baseDate} 완료`);
+        dbg(`[저장] 결과날짜=${baseDate} 완료`);
         setP(Math.round((di+1)/calcDates.length*90));
       }
       // ── 순차 처리 완료 ──
