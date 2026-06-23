@@ -838,7 +838,7 @@ function runCalc(){
 }
 
 // ── 특정 날짜 음수 자동 보정 (runCalc 내부에서 날짜별 호출) ──
-async function autoFixNegForDate(baseDate, negRows, clientId, clientSec){
+async async function autoFixNegForDate(baseDate, negRows, clientId, clientSec){
   const bd=new Date(baseDate+'T00:00:00');
   const prevMonthStart=fmt(new Date(bd.getFullYear(),bd.getMonth()-1,1));
   const prevMonthEnd  =fmt(new Date(bd.getFullYear(),bd.getMonth(),0));
