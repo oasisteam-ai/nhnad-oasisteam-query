@@ -97,7 +97,7 @@ td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
   <!-- STEP 1 -->
   <div class="panel active" id="p1">
     <div class="panel-title">데이터 준비</div>
-    <div class="panel-desc">트렌드K 파일을 업로드하세요. 파일 내 '수집기간' 컬럼 날짜 -1일을 기준으로 자동 인식합니다.</div>
+    <div class="panel-desc">트렌드K 파일을 업로드하세요. 파일 내 '수집기간' 날짜를 기준으로 자동 인식합니다.</div>
     <div class="sbar">
       <span class="sl">저장 데이터</span>
       <span class="sv" id="storageInfo">확인 중...</span>
@@ -209,7 +209,7 @@ td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
           <span style="color:#888">전29일 합산 기간: 결과날짜 기준 최근 29일 (브라우저에 저장된 누적 데이터 활용)</span><br><br>
           <table style="width:100%;border-collapse:collapse;font-size:11px">
             <tr style="background:#f0f4ff"><th style="padding:6px 10px;text-align:left;border:1px solid #dde">그룹</th><th style="padding:6px 10px;border:1px solid #dde">계산 방식</th></tr>
-            <tr><td style="padding:6px 10px;border:1px solid #dde">DB손보 / DB손보_전사 / 업종_자동차 / 업종_이륜차</td><td style="padding:6px 10px;border:1px solid #dde;text-align:center">PC / MO 분리</td></tr>
+            <tr><td style="padding:6px 10px;border:1px solid #dde">DB손보 / DB손보_전사 / 자동차보험 / 이륜차보험</td><td style="padding:6px 10px;border:1px solid #dde;text-align:center">PC / MO 분리</td></tr>
             <tr style="background:#f8f9fb"><td style="padding:6px 10px;border:1px solid #dde">경쟁사_삼성 / 경쟁사_현대 / 경쟁사_KB</td><td style="padding:6px 10px;border:1px solid #dde;text-align:center">PC+MO 통합 (3사 각각 별도 집계)</td></tr>
           </table>
           </div>
@@ -318,7 +318,7 @@ td:first-child,td:nth-child(2),td:nth-child(3){text-align:left}
     <div class="panel-title">결과 다운로드</div>
     <div id="dlButtons"></div>
     <div class="tips" style="margin-top:10px">
-      <strong>✅ 데이터 저장 완료:</strong> 다음 작업 시 오늘 파일만 업로드하면 자동으로 누적 데이터와 비교합니다.
+      <strong>✅ 다운로드 완료 후:</strong> 누적 날짜 계산 시 아래 🔄 보정 후 재계산을 실행하면 더 정확한 결과를 얻을 수 있습니다.
     </div>
     <div style="margin-top:14px;padding:14px;background:#fff8f0;border:1px solid #e67e22;border-radius:8px">
       <div style="font-size:12px;color:#e67e22;font-weight:700;margin-bottom:6px">🔄 보정 후 재계산</div>
@@ -354,15 +354,15 @@ const KW_REF = {
   'kb손해보험다이렉트':'경쟁사_KB','kb손해보험자동차보험':'경쟁사_KB','kb자동차':'경쟁사_KB',
   'kb자동차다이렉트':'경쟁사_KB','kb자동차보험':'경쟁사_KB','kb자동차보험마일리지':'경쟁사_KB',
   // 업종
-  '다이렉트자동차보험':'업종_자동차','자동차다이렉트보험':'업종_자동차','자동차보험':'업종_자동차',
-  '자동차보험다이렉트':'업종_자동차','자동차보험료비교견적사이트':'업종_자동차',
-  '오토바이보험':'업종_이륜차','이륜차다이렉트보험':'업종_이륜차','이륜차보험':'업종_이륜차',
+  '다이렉트자동차보험':'자동차보험','자동차다이렉트보험':'자동차보험','자동차보험':'자동차보험',
+  '자동차보험다이렉트':'자동차보험','자동차보험료비교견적사이트':'자동차보험',
+  '오토바이보험':'이륜차보험','이륜차다이렉트보험':'이륜차보험','이륜차보험':'이륜차보험',
 };
 // 경쟁사 그룹들: PC+MO 통합 계산
 const COMP_GROUPS = new Set(['경쟁사_삼성','경쟁사_현대','경쟁사_KB']);
 // 초기파일 섹션2 통합키 → 그룹 매핑
 const INIT_COMP_MAP = {'kb손보':'경쟁사_KB','삼성화재':'경쟁사_삼성','현대해상':'경쟁사_현대'};
-const GROUP_ORDER = ['DB손보','DB손보_전사','경쟁사_삼성','경쟁사_현대','경쟁사_KB','업종_자동차','업종_이륜차'];
+const GROUP_ORDER = ['DB손보','DB손보_전사','경쟁사_삼성','경쟁사_현대','경쟁사_KB','자동차보험','이륜차보험'];
 
 // ══════════════════════════════════════════════════════════
 // 저장소
@@ -403,6 +403,8 @@ function reCalc(){
   saveStore(store);
   dbg('[재계산] 트렌드K 계산값 초기화, 재계산 시작...');
   updateStoreInfo();
+  // 2차 계산 완료 후 알림을 위한 플래그
+  window._isReCalc = true;
   goStep(2);
 }
 
@@ -458,7 +460,8 @@ function parseTrendK(wb){
     const kwRaw=String(r[kwI]||'').trim(); if(!kwRaw) continue;
     const kwLower=kwRaw.toLowerCase();
     if(!(kwLower in KW_REF)) continue;
-    const grp=KW_REF[kwLower];
+    const grpRaw=String(r[grpI]||'').trim().replace('DB손해보험_','');
+    const grp=COMP_GROUPS.has(grpRaw)?grpRaw:KW_REF[kwLower];
     const collectDate=String(r[dateI]||'').trim();
     const pc=toNum(r[pcI]), mo=toNum(r[moI]);
     rows.push({kw:kwRaw,kwLower,grp,collectDate,pc,mo});
@@ -828,6 +831,10 @@ function runCalc(){
       renderResults();
       document.getElementById('loadingMsg').classList.remove('show');
       document.getElementById('resultArea').style.display='block';
+      if(window._isReCalc){
+        window._isReCalc=false;
+        setTimeout(()=>{ goStep(4); alert('✅ 보정 후 재계산 완료!\n최종 결과가 반영됐습니다. 다운로드 탭에서 결과를 확인하세요.'); },300);
+      }
 
     }catch(err){
       setL('오류: '+err.message);
@@ -868,7 +875,10 @@ async function autoFixNegForDate(baseDate, negRows, clientId, clientSec){
           .reduce((a,[,v])=>a+v,0);
         if(denom<=0){ dbg(`⚠️ ${r.kw} 분모=0`); continue; }
         const numer=allRatios[baseDate];
-        if(numer===undefined){ dbg(`⚠️ ${r.kw} 당일 지수 없음`); continue; }
+        if(numer===undefined){
+        negRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===kwLower&&row.isComp)).forEach(row=>{ row.pcmo1=0; row.negPcmo=false; });
+        dbg(`⚠️ ${r.kw} PC+MO 지수 없음 → 0 처리`); continue;
+      }
         negRows.filter(row=>((row.kwLower||row.kw||'').toLowerCase()===kwLower&&row.isComp)).forEach(row=>{
           row.pcmo1=r2(mqVal*numer/denom); row.negPcmo=false;
         });
