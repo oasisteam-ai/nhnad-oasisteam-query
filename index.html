@@ -519,7 +519,7 @@ const todayFiles=[];
 function handleTodayFiles(fl){
   Array.from(fl).forEach(file=>{
     const id='tc-'+Date.now()+Math.random().toString(36).slice(2,5);
-    addChip('today', file.name, id, null);
+    addChip('today', file.name, id);
     readXLS(file, wb=>{
       const rows = parseTrendK(wb);
       // 수집기간 컬럼에서 고유 날짜들 추출
@@ -557,10 +557,10 @@ function readXLS(file,onSuccess,onError){
   reader.onerror=()=>onError('파일 읽기 실패');
   reader.readAsArrayBuffer(file);
 }
-function addChip(slot,name,id,fileDate){
+function addChip(slot,name,id){
   const fl=document.getElementById('fl-'+slot);
   const d=document.createElement('div'); d.className='fc'; d.id=id;
-  const dateBadge=fileDate?`<span class="date-badge">${fileDate}</span>`:'';
+  const dateBadge='';
   d.innerHTML=`<span>⏳</span>${dateBadge}<span class="fc-name" title="${name}">${name}</span><span class="fc-lbl" style="color:#888;font-size:10px;background:#e8f0e8;padding:1px 5px;border-radius:3px;white-space:nowrap"></span><span class="fc-del" onclick="removeFile('${slot}','${id}')">×</span>`;
   fl.appendChild(d);
   document.getElementById('cnt-today').textContent=todayFiles.length+1;
@@ -767,18 +767,13 @@ function runCalc(){
         // ── store 저장: 계산된 1일 쿼리값(pc1, mo1) 저장 ──
         // 재계산 시에도 덮어쓰기로 최신값 반영
         const newStore=loadStore();
-        // 저장 키 = 결과날짜(baseDate) 기준 — 전29일 합산 범위와 일치시키기 위함
-        const fileDateKey=baseDate;
-
-        Object.entries(todayMap).forEach(([sk,today])=>{
+                Object.entries(todayMap).forEach(([sk,today])=>{
           if(!newStore[sk]) newStore[sk]={};
-          // 보정된 1일 쿼리값 찾기
           const resultRow=Object.values(calcResults[baseDate])
             .flat().find(r=>storeKey(r.kwLower,r.grp)===sk);
           const pc1save = resultRow ? resultRow.pc1 : r2(today.pc-(prev29Map[sk]?.pc||0));
           const mo1save = resultRow ? resultRow.mo1 : r2(today.mo-(prev29Map[sk]?.mo||0));
-          // 1일 쿼리값으로 저장 (30일 누적값 아님)
-          newStore[sk][fileDateKey]={pc1:pc1save, mo1:mo1save, type:'pc_mo'};
+          newStore[sk][baseDate]={pc1:pc1save, mo1:mo1save, type:'pc_mo'};
           const dts=Object.keys(newStore[sk]).sort();
           if(dts.length>90) dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
         });
@@ -790,7 +785,7 @@ function runCalc(){
             const resultRow=Object.values(calcResults[baseDate]).flat()
               .find(r=>r.isComp&&r.grp===grp);
             const pcmo1save = resultRow ? resultRow.pcmo1 : r2(compTodayMap[grp]-(prev29CompMap[grp]||0));
-            newStore[sk][fileDateKey]={pcmo1:pcmo1save, type:'pcmo'};
+            newStore[sk][baseDate]={pcmo1:pcmo1save, type:'pcmo'};
             const dts=Object.keys(newStore[sk]).sort();
             if(dts.length>90) dts.slice(0,dts.length-90).forEach(d=>delete newStore[sk][d]);
           }
@@ -817,7 +812,7 @@ function runCalc(){
 }
 
 // ── 특정 날짜 음수 자동 보정 (runCalc 내부에서 날짜별 호출) ──
-async function autoFixNegForDate(baseDate, negRows, clientId, clientSec){
+async async function autoFixNegForDate(baseDate, negRows, clientId, clientSec){
   const bd=new Date(baseDate+'T00:00:00');
   const prevMonthStart=fmt(new Date(bd.getFullYear(),bd.getMonth()-1,1));
   const prevMonthEnd  =fmt(new Date(bd.getFullYear(),bd.getMonth(),0));
